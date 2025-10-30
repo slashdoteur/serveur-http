@@ -1,0 +1,18 @@
+# Makefile pour bichttpd - version corrigée
+CC = gcc
+CFLAGS = -Wall -Werror
+TARGET = ../opt/bichttpd/usr/sbin/bichttpd
+SRC = bichttpd.c
+
+$(TARGET): $(SRC)
+	mkdir -p ../opt/bichttpd/usr/sbin/
+	$(CC) $(CFLAGS) -o $(TARGET) $(SRC)
+	@echo "Compilé dans: $(TARGET)"
+
+all: $(TARGET)
+
+clean:
+	rm -f $(TARGET)
+	@echo "Nettoyé: $(TARGET)"
+
+.PHONY: all clean

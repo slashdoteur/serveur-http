@@ -1,0 +1,4 @@
+COMMANDE CONNEXION SERVEUR C
+
+ssh -i tc243969.key -p 13022 tc243969@iot.devinci.fr
+
