@@ -95,7 +95,7 @@ void log_request(const char *method, const char *path, int status) {
 
 void get_current_date(char *buffer, size_t size) {
     time_t now = time(NULL);
-    struct tm *tm_info = gmtime(&now); // Use GMT for HTTP dates
+    struct tm *tm_info = localtime(&now); // Use GMT for HTTP dates
     strftime(buffer, size, "%a, %d %b %Y %H:%M:%S GMT", tm_info);
 }
 
