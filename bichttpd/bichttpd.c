@@ -34,7 +34,7 @@ void handle_sigint(int sig) {
 
 void print_usage(const char *program_name) {
     fprintf(stderr, "Usage: %s [-p PORT] [-d] [-s] [-l LOGFILE] [-c CONFFILE]\n", program_name);
-    fprintf(stderr, "  -p PORT  Spécifier le port d'écoute (défaut: dd42124)\n");
+    fprintf(stderr, "  -p PORT  Spécifier le port d'écoute (défaut: 42124)\n");
     fprintf(stderr, "  -d       Activer le mode debug\n");
     fprintf(stderr, "  -s       Activer le mode sécurisé (TLS)\n");
     fprintf(stderr, "  -l FILE  Spécifier le fichier de log\n");
@@ -63,8 +63,16 @@ int parse_config(const char *filename, unsigned short *port) {
     while (fgets(line, sizeof(line), file)) {
         char *key = strtok(line, " =");
         char *value = strtok(NULL, " =\n\r");
-        if (key && value && strcmp(key, "port") == 0) {
-            *port = atoi(value);
+        if (key && value) {
+            if (strcmp(key, "port") == 0) {
+                *port = atoi(value);
+            } else if (strcmp(key, "secure_mode") == 0) {
+                secure_mode = atoi(value);
+            } else if (strcmp(key, "debug_mode") == 0) {
+                debug_mode = atoi(value);
+            } else if (strcmp(key, "log_file") == 0) {
+                log_file = strdup(value);
+            }
         }
     }
     fclose(file);
@@ -77,8 +85,9 @@ void log_request(const char *method, const char *path, int status) {
         if (log) {
             time_t now = time(NULL);
             struct tm *tm_info = localtime(&now);
-            fprintf(log, "%d \"%s %s HTTP/1.0\" %d\n",
-                   tm_info->tm_year + 1900, method, path, status);
+            char time_buffer[64];
+            strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", tm_info);
+            fprintf(log, "[%s] \"%s %s HTTP/1.0\" %d\n", time_buffer, method, path, status);
             fclose(log);
         }
     }
@@ -86,8 +95,8 @@ void log_request(const char *method, const char *path, int status) {
 
 void get_current_date(char *buffer, size_t size) {
     time_t now = time(NULL);
-    struct tm *tm_info = localtime(&now);
-    strftime(buffer, size, "%a, %d %b %Y %H:%M:%S", tm_info);
+    struct tm *tm_info = gmtime(&now); // Use GMT for HTTP dates
+    strftime(buffer, size, "%a, %d %b %Y %H:%M:%S GMT", tm_info);
 }
 
 void send_http_response(int client, int status, const char *body, const char *method, const char *path) {
@@ -104,15 +113,19 @@ void send_http_response(int client, int status, const char *body, const char *me
 
     get_current_date(date_header, sizeof(date_header));
 
-    size_t body_length = strlen(body);
+    size_t body_length = (strcmp(method, "HEAD") == 0) ? 0 : strlen(body);
     snprintf(response, sizeof(response),
         "HTTP/1.0 %s\r\n"
         "Date: %s\r\n"
         "Content-Type: text/html\r\n"
         "Content-Length: %zu\r\n"
         "Connection: close\r\n"
-        "\r\n"
-        "%s", status_text, date_header, body_length, body);
+        "\r\n", status_text, date_header, body_length);
+
+    // For HEAD requests, don't send body
+    if (strcmp(method, "HEAD") != 0) {
+        strncat(response, body, sizeof(response) - strlen(response) - 1);
+    }
 
     send(client, response, strlen(response), 0);
     log_request(method, path, status);
@@ -132,15 +145,19 @@ void send_ssl_response(SSL *ssl, int status, const char *body, const char *metho
 
     get_current_date(date_header, sizeof(date_header));
 
-    size_t body_length = strlen(body);
+    size_t body_length = (strcmp(method, "HEAD") == 0) ? 0 : strlen(body);
     snprintf(response, sizeof(response),
         "HTTP/1.0 %s\r\n"
         "Date: %s\r\n"
         "Content-Type: text/html\r\n"
         "Content-Length: %zu\r\n"
         "Connection: close\r\n"
-        "\r\n"
-        "%s", status_text, date_header, body_length, body);
+        "\r\n", status_text, date_header, body_length);
+
+    // For HEAD requests, don't send body
+    if (strcmp(method, "HEAD") != 0) {
+        strncat(response, body, sizeof(response) - strlen(response) - 1);
+    }
 
     SSL_write(ssl, response, strlen(response));
     log_request(method, path, status);
@@ -218,6 +235,7 @@ int serve_file(int client, const char *path, const char *method) {
     char date_header[128];
     get_current_date(date_header, sizeof(date_header));
 
+    // For HEAD requests, don't include body
     if (strcmp(method, "HEAD") == 0) {
         snprintf(response, sizeof(response),
             "HTTP/1.0 200 OK\r\n"
@@ -311,6 +329,7 @@ int serve_ssl_file(SSL *ssl, const char *path, const char *method) {
     char date_header[128];
     get_current_date(date_header, sizeof(date_header));
 
+    // For HEAD requests, don't include body
     if (strcmp(method, "HEAD") == 0) {
         snprintf(response, sizeof(response),
             "HTTP/1.0 200 OK\r\n"
@@ -495,7 +514,7 @@ int configure_ssl_context(SSL_CTX *ctx) {
 }
 
 int main(int argc, char *argv[]) {
-    unsigned short port = 42124;
+    unsigned short port = 42124; // Fixed default port
     int opt;
 
     while((opt = getopt(argc, argv, "p:dsl:c:")) != -1) {
@@ -548,7 +567,7 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_addr.s_addr = htonl(INADDR_ANY); // Listen on all interfaces
     addr.sin_port = htons(port);
 
     if (bind(server_socket, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
@@ -563,7 +582,7 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    printf("HTTP server listening on http://localhost:%d/\n", port);
+    printf("HTTP server listening on port %d\n", port);
     if (secure_mode) {
         printf("TLS server enabled on port %d\n", port);
     }
