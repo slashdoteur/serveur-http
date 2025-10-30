@@ -1,7 +1,7 @@
 # Makefile pour bichttpd - version complète
 CC = gcc
 CFLAGS = -Wall -Werror
-LDLIBS = -ltls
+LDLIBS = -lssl -lcrypto
 TARGET = ../opt/bichttpd/usr/sbin/bichttpd
 SRC = bichttpd.c
 
@@ -16,4 +16,4 @@ clean:
 	rm -f $(TARGET)
 	@echo "Nettoyé: $(TARGET)"
 
-.PHONY: all clean
+.PHONY: all c
