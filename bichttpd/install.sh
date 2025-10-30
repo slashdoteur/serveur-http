@@ -21,6 +21,6 @@ fi
 echo "Installation du binaire..."
 cp ./bichttpd "$BASE_DIR/usr/sbin/"
 chmod +x "$BASE_DIR/usr/sbin/bichttpd"
- 
+
 echo "Installation terminée."
 echo "Binaire installé dans $BASE_DIR/usr/sbin/"
