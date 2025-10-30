@@ -19,8 +19,8 @@ static const char *log_file = NULL;
 static int debug_mode = 0;
 static int secure_mode = 0;
 static SSL_CTX *ssl_ctx = NULL;
-static const char *cert_file = "/opt/bichttpd/usr/sbin/server.crt";
-static const char *key_file = "/opt/bichttpd/usr/sbin/server.key";
+static const char *cert_file = "/home/2025/a2-bic/tc243969/opt/bichttpd/etc/certs/cert.pem";
+static const char *key_file = "/home/2025/a2-bic/tc243969/opt/bichttpd/etc/certs/key.pem";
 
 void handle_sigint(int sig) {
     if (server_socket != -1) {
